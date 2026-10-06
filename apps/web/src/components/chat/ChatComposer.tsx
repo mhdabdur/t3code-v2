@@ -54,7 +54,7 @@ import {
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { folderDropTarget, resolveDroppedFolderPath } from "./folderDrop";
 import { createModelSelection, normalizeModelSlug } from "@t3tools/shared/model";
-import { USAGE_LIMITS_COMMAND } from "@t3tools/shared/usageLimits";
+import { limitsNotice, USAGE_LIMITS_COMMAND } from "@t3tools/shared/usageLimits";
 import {
   memo,
   type ComponentProps,
@@ -288,7 +288,11 @@ import {
   renderProviderTraitsMenuContent,
   renderProviderTraitsPicker,
 } from "./composerProviderState";
-import { ContextWindowMeter, ContextWindowMeterPlaceholder } from "./ContextWindowMeter";
+import {
+  type ComposerUsageLimits,
+  ContextWindowMeter,
+  ContextWindowMeterPlaceholder,
+} from "./ContextWindowMeter";
 import {
   providerSupportsManualCompaction,
   resolveContextWindowModelDisplayName,
@@ -1349,6 +1353,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
 const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(props: {
   compact: boolean;
   activeContextWindow: ContextWindowSnapshot | null;
+  usageLimits: ComposerUsageLimits | null;
   reserveContextWindowMeter: boolean;
   activeThreadModelDisplayName: string | null;
   isPreparingWorktree: boolean;
@@ -1384,9 +1389,10 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
 }) {
   return (
     <>
-      {props.activeContextWindow ? (
+      {props.activeContextWindow || props.usageLimits ? (
         <ContextWindowMeter
           usage={props.activeContextWindow}
+          usageLimits={props.usageLimits}
           modelDisplayName={props.activeThreadModelDisplayName}
           onCompact={props.onCompactContext}
           compactDisabled={props.compactDisabled}
@@ -2352,6 +2358,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     () => resolveContextWindowModelDisplayName(activeThreadModelSelection, modelOptionsByInstance),
     [activeThreadModelSelection, modelOptionsByInstance],
   );
+  const composerUsageLimits = useMemo<ComposerUsageLimits | null>(() => {
+    const limits = selectedProviderStatus?.usageLimits;
+    if (!limits || limitsNotice(limits) !== null) return null;
+    return { limits, planLabel: selectedProviderStatus?.auth.label ?? null };
+  }, [selectedProviderStatus]);
   const reserveContextWindowMeter = shouldReserveContextWindowMeter({
     meterEnabled: settings.contextWindowMeterEnabled,
     detailLoading: props.threadSyncPhase === "loading",
@@ -7285,6 +7296,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   isComposerResting && "flex min-w-0 items-center gap-1",
                   isComposerResting &&
                     ((settings.contextWindowMeterEnabled && activeContextWindow) ||
+                    composerUsageLimits ||
                     reserveContextWindowMeter
                       ? "pr-28"
                       : showComposerAttachAction
@@ -7516,6 +7528,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     activeContextWindow={
                       settings.contextWindowMeterEnabled ? activeContextWindow : null
                     }
+                    usageLimits={composerUsageLimits}
                     reserveContextWindowMeter={reserveContextWindowMeter}
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
                     pendingAction={pendingPrimaryAction}

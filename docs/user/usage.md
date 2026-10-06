@@ -1,7 +1,8 @@
 # Usage and limits
 
-Open **Usage** from the sidebar or the command palette, or press `mod+u` on web and
-desktop when the terminal is not focused. Customize `usage.open` in
+Open **Usage** from the command palette, or press `mod+u` on web and desktop when the
+terminal is not focused. Hover the context meter next to the composer's send button to see the
+selected provider's limits at a glance; **See detailed breakdown** opens the full page. Customize `usage.open` in
 **Settings → Keybindings**.
 
 ## Understand your usage

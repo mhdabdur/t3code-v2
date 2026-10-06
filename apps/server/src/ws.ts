@@ -157,6 +157,7 @@ import {
 } from "./orchestration-v2/WireProjection.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
+import * as PromptSuggestionService from "./orchestration-v2/PromptSuggestionService.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
 import {
@@ -1199,6 +1200,7 @@ const layerWsRpc = (
       const projectService = yield* ProjectService.ProjectService;
       const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
+      const promptSuggestions = yield* PromptSuggestionService.PromptSuggestionService;
 
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const analytics = yield* AnalyticsService.AnalyticsService;
@@ -1915,6 +1917,12 @@ const layerWsRpc = (
                   }),
               ),
             ),
+            { "rpc.aggregate": "orchestration" },
+          ),
+        [ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt]: (input) =>
+          observeRpcEffect(
+            ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
+            promptSuggestions.suggestNextPrompt(input),
             { "rpc.aggregate": "orchestration" },
           ),
         [ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot]: (_input) =>

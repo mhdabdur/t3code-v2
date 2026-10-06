@@ -138,6 +138,11 @@ import {
   OrchestrationSearchThreadsResult,
 } from "./threadSearch.ts";
 import {
+  OrchestrationSuggestNextPromptError,
+  OrchestrationSuggestNextPromptInput,
+  OrchestrationSuggestNextPromptResult,
+} from "./promptSuggestion.ts";
+import {
   ProviderUploadFeedbackError,
   ProviderUploadFeedbackInput,
   ProviderUploadFeedbackResult,
@@ -1532,6 +1537,15 @@ const WsOrchestrationV2SearchThreadsRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.s
   error: Schema.Union([OrchestrationSearchThreadsError, EnvironmentAuthorizationError]),
 });
 
+const WsOrchestrationV2SuggestNextPromptRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
+  {
+    payload: OrchestrationSuggestNextPromptInput,
+    success: OrchestrationSuggestNextPromptResult,
+    error: Schema.Union([OrchestrationSuggestNextPromptError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsOrchestrationV2GetArchivedShellSnapshotRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
   {
@@ -1914,6 +1928,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2GetTurnDiffRpc,
   WsOrchestrationV2GetFullThreadDiffRpc,
   WsOrchestrationV2SearchThreadsRpc,
+  WsOrchestrationV2SuggestNextPromptRpc,
   WsOrchestrationV2GetArchivedShellSnapshotRpc,
   WsOrchestrationV2GetThreadProjectionRpc,
   WsOrchestrationV2LaunchThreadRpc,

@@ -401,6 +401,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["composer rich text tiptap bold italic markdown styled wysiwyg"],
   },
   {
+    id: "prompt-suggestions",
+    title: "Prompt suggestions",
+    to: "/settings/general",
+    searchTerms: ["prompt suggestions next ghost text autocomplete tab predict"],
+  },
+  {
     id: "composer-collapse",
     title: "Collapse composer on scroll",
     to: "/settings/general",

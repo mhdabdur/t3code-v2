@@ -251,7 +251,7 @@ import {
   type EnvironmentQueryTarget,
 } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
-import { useDebouncedValue } from "~/state/queries";
+import { useDebouncedValue, usePromptSuggestion } from "~/state/queries";
 import { ProviderModelPicker } from "./ProviderModelPicker";
 import { resolveModelPickerSelectedModel } from "./ModelPickerContent";
 import {
@@ -1687,6 +1687,8 @@ export interface ChatComposerProps {
 // Component
 // --------------------------------------------------------------------------
 
+const PROMPT_SUGGESTION_MAX_AGE_MS = 10 * 60_000;
+
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const {
     composerDraftTarget,
@@ -2363,6 +2365,25 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (!limits || limitsNotice(limits) !== null) return null;
     return { limits, planLabel: selectedProviderStatus?.auth.label ?? null };
   }, [selectedProviderStatus]);
+  // Only replies that landed recently get a guess, so browsing old threads costs nothing.
+  const lastTimelineMessage = promptHistoryMessages.at(-1);
+  const promptSuggestionMessageId =
+    settings.promptSuggestionsEnabled &&
+    props.isServerThread &&
+    !canInterrupt &&
+    pendingApprovals.length === 0 &&
+    pendingUserInputs.length === 0 &&
+    lastTimelineMessage?.role === "assistant" &&
+    !lastTimelineMessage.streaming &&
+    Date.now() - Date.parse(lastTimelineMessage.updatedAt) < PROMPT_SUGGESTION_MAX_AGE_MS
+      ? lastTimelineMessage.id
+      : null;
+  const promptSuggestion = usePromptSuggestion(
+    environmentId,
+    activeThreadId,
+    promptSuggestionMessageId,
+  );
+
   const reserveContextWindowMeter = shouldReserveContextWindowMeter({
     meterEnabled: settings.contextWindowMeterEnabled,
     detailLoading: props.threadSyncPhase === "loading",
@@ -4422,6 +4443,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         onSelectComposerItem(selectedItem);
         return true;
       }
+    }
+    // Tab in an empty composer takes the suggested next prompt shown as its placeholder.
+    if (
+      key === "Tab" &&
+      !event.shiftKey &&
+      !menuIsActive &&
+      promptSuggestion !== null &&
+      promptRef.current.length === 0
+    ) {
+      return applyPromptReplacement(0, 0, promptSuggestion);
     }
     if ((key === "ArrowUp" || key === "ArrowDown") && submissionIntent === null) {
       return navigatePromptHistory(key === "ArrowUp" ? "backward" : "forward", event);
@@ -7295,7 +7326,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   "relative",
                   isComposerResting && "flex min-w-0 items-center gap-1",
                   isComposerResting &&
-                    ((settings.contextWindowMeterEnabled && activeContextWindow) ||
+                    (((settings.contextWindowMeterEnabled || composerUsageLimits) &&
+                      activeContextWindow) ||
                     composerUsageLimits ||
                     reserveContextWindowMeter
                       ? "pr-28"
@@ -7401,7 +7433,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                 ? "Enable a provider in Settings to send a message"
                                 : phase === "disconnected"
                                   ? DISCONNECTED_COMPOSER_PLACEHOLDER
-                                  : "Ask anything, @tag files/folders, $use skills, or / for commands"
+                                  : (promptSuggestion ??
+                                    "Ask anything, @tag files/folders, $use skills, or / for commands")
                     }
                     disabled={
                       isConnecting ||
@@ -7526,7 +7559,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   <ComposerFooterPrimaryActions
                     compact={isComposerResting || isComposerPrimaryActionsCompact}
                     activeContextWindow={
-                      settings.contextWindowMeterEnabled ? activeContextWindow : null
+                      settings.contextWindowMeterEnabled || composerUsageLimits
+                        ? activeContextWindow
+                        : null
                     }
                     usageLimits={composerUsageLimits}
                     reserveContextWindowMeter={reserveContextWindowMeter}

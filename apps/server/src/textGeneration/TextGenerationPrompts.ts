@@ -344,3 +344,24 @@ export function buildThreadTitlePrompt(input: ThreadTitlePromptInput) {
 
   return { prompt, outputSchema };
 }
+
+// ---------------------------------------------------------------------------
+// Next prompt suggestion
+// ---------------------------------------------------------------------------
+
+export function buildPromptSuggestionPrompt(input: { readonly conversation: string }) {
+  const prompt = [
+    "You predict the next message a user will send to their coding agent.",
+    "Return a JSON object with key: suggestion. Use an empty string when there is no obvious next step.",
+    "Rules:",
+    "- write it as the user, in the language the user writes in",
+    "- a short imperative request, <= 100 chars, one line, no quotes",
+    "- follow from the agent's latest reply: accept its offer, answer its question, or take the natural next step",
+    "- never repeat something the user already asked for",
+    "",
+    "Conversation:",
+    preserveMessageEnd(input.conversation),
+  ].join("\n");
+
+  return { prompt, outputSchema: Schema.Struct({ suggestion: Schema.String }) };
+}

@@ -40,8 +40,14 @@ export function ContextWindowMeter(props: {
   compactDisabled?: boolean | undefined;
   compactDisabledReason?: string | null | undefined;
 }) {
-  const { usage, usageLimits, modelDisplayName, onCompact, compactDisabled, compactDisabledReason } =
-    props;
+  const {
+    usage,
+    usageLimits,
+    modelDisplayName,
+    onCompact,
+    compactDisabled,
+    compactDisabledReason,
+  } = props;
   const usedPercentage = usage ? formatPercentage(usage.usedPercentage) : null;
   const normalizedPercentage = Math.max(0, Math.min(100, usage?.usedPercentage ?? 0));
   const radius = 9.75;
@@ -68,7 +74,7 @@ export function ContextWindowMeter(props: {
             aria-label={
               !usage
                 ? "Usage limits"
-                : usage.maxTokens !== null && usedPercentage
+                : usage.maxTokens != null && usedPercentage
                   ? `Context window ${usedPercentage} used`
                   : `Context window ${formatContextWindowTokens(usage.usedTokens)} tokens used`
             }
@@ -119,7 +125,7 @@ export function ContextWindowMeter(props: {
               <div className="font-medium text-muted-foreground text-xs">Context window</div>
               <div className="text-secondary-label text-2xs tabular-nums">
                 {formatContextWindowTokens(usage.usedTokens)}
-                {usage.maxTokens !== null ? (
+                {usage.maxTokens != null ? (
                   <>
                     {" / "}
                     {formatContextWindowTokens(usage.maxTokens)}
@@ -128,7 +134,7 @@ export function ContextWindowMeter(props: {
                 ) : null}
               </div>
             </div>
-            {usage.maxTokens !== null ? (
+            {usage.maxTokens != null ? (
               <div
                 className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60"
                 role="progressbar"
@@ -138,8 +144,11 @@ export function ContextWindowMeter(props: {
                 aria-label="Context window usage"
               >
                 <div
-                  className="h-full rounded-full transition-[width,background-color] duration-500 ease-out motion-reduce:transition-none"
-                  style={{ width: `${normalizedPercentage}%`, backgroundColor: usageColor }}
+                  className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
+                  style={{
+                    width: `${normalizedPercentage}%`,
+                    ...(isOverloaded ? { backgroundColor: "var(--color-error)" } : {}),
+                  }}
                 />
               </div>
             ) : null}
@@ -223,58 +232,62 @@ function UsageLimitsSection({
   const now = Date.now();
   const openUsagePage = () => void navigate({ to: "/usage" });
   return (
-    <div
-      className={
-        separated
-          ? "flex flex-col gap-2.5 border-t border-border/60 p-(--floating-content-inset)"
-          : "flex flex-col gap-2.5 p-(--floating-content-inset)"
-      }
-    >
-      <button
-        type="button"
-        className="flex items-center justify-between gap-3 text-left text-muted-foreground text-xs font-medium hover:text-foreground"
-        onClick={openUsagePage}
+    <>
+      <div
+        className={
+          separated
+            ? "flex flex-col gap-2.5 border-t border-border/60 p-(--floating-content-inset)"
+            : "flex flex-col gap-2.5 p-(--floating-content-inset)"
+        }
       >
-        <span className="truncate">
-          Your usage limits{usageLimits.planLabel ? ` · ${usageLimits.planLabel}` : ""}
-        </span>
-        <ArrowRightIcon aria-hidden="true" className="size-3.5 shrink-0" />
-      </button>
-      {usageLimits.limits.windows.map((window) => {
-        const used = Math.round(Math.max(0, Math.min(100, window.usedPercent)));
-        const resets = resetLabel(window, now, timestampFormat);
-        return (
-          <div key={window.id} className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3 text-2xs leading-4">
-              <span className="truncate font-medium text-foreground">{window.label}</span>
-              <span className="shrink-0 tabular-nums text-secondary-label">
-                {resets}
-                <span className="ms-2">{used}%</span>
-              </span>
-            </div>
-            <div
-              className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={used}
-              aria-label={`${window.label} usage`}
-            >
+        <button
+          type="button"
+          className="flex items-center justify-between gap-3 text-left text-muted-foreground text-xs font-medium hover:text-foreground"
+          onClick={openUsagePage}
+        >
+          <span className="truncate">
+            Your usage limits{usageLimits.planLabel ? ` · ${usageLimits.planLabel}` : ""}
+          </span>
+          <ArrowRightIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        </button>
+        {usageLimits.limits.windows.map((window) => {
+          const used = Math.round(Math.max(0, Math.min(100, window.usedPercent)));
+          const resets = resetLabel(window, now, timestampFormat);
+          return (
+            <div key={window.id} className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-3 text-2xs leading-4">
+                <span className="truncate font-medium text-foreground">{window.label}</span>
+                <span className="shrink-0 tabular-nums text-secondary-label">
+                  {resets}
+                  <span className="ms-2">{used}%</span>
+                </span>
+              </div>
               <div
-                className="h-full rounded-full bg-primary"
-                style={{
-                  width: `${used}%`,
-                  ...(used > 90 ? { backgroundColor: "var(--color-error)" } : {}),
-                }}
-              />
+                className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={used}
+                aria-label={`${window.label} usage`}
+              >
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{
+                    width: `${used}%`,
+                    ...(used > 90 ? { backgroundColor: "var(--color-error)" } : {}),
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        );
-      })}
-      <Button size="xs" variant="secondary" className="self-start" onClick={openUsagePage}>
-        See detailed breakdown
-      </Button>
-    </div>
+          );
+        })}
+      </div>
+      <div className="flex border-t border-border/60 p-(--floating-content-inset)">
+        <Button size="xs" variant="secondary" onClick={openUsagePage}>
+          See detailed breakdown
+        </Button>
+      </div>
+    </>
   );
 }
 

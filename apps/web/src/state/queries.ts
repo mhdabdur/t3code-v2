@@ -11,6 +11,7 @@ import {
 import { type VcsRefTarget } from "@t3tools/client-runtime/state/vcs";
 import type {
   EnvironmentId,
+  MessageId,
   ProjectContentMatch,
   ProjectEntry,
   ProjectEntryKind,
@@ -97,6 +98,23 @@ export function useThreadSearch(
     query: settledQuery ?? "",
     isPending: canSearch && (isDebouncing || result.isLoading),
   };
+}
+
+/** The guessed next prompt after `messageId`, fetched once per reply. Null while loading or on failure. */
+export function usePromptSuggestion(
+  environmentId: EnvironmentId,
+  threadId: ThreadId | null,
+  messageId: MessageId | null,
+): string | null {
+  const result = useEnvironmentQuery(
+    threadId !== null && messageId !== null
+      ? orchestrationEnvironment.promptSuggestion({
+          environmentId,
+          input: { threadId, messageId },
+        })
+      : null,
+  );
+  return result.data?.suggestion ?? null;
 }
 
 export function usePaginatedBranches(target: VcsRefTarget) {

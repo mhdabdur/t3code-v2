@@ -108,6 +108,13 @@ the text is an unedited recalled prompt, with the caret on the first visual line
 the last visual line for `ArrowDown`, counting wrapped lines. Editing a recalled prompt turns it
 into a normal draft.
 
+## Prompt suggestions
+
+After the agent replies, the empty composer shows a guess at your next prompt in place of its usual
+hint. Press `Tab` to put it in the composer, then edit or send it. Each guess is one extra request
+to the text generation model set in Settings, and only replies from the last 10 minutes get one. To
+turn suggestions off, go to **Settings → General → Prompt suggestions**.
+
 ## Edit an earlier prompt
 
 On web and desktop, choose **Edit from here** beneath a sent message to rewind

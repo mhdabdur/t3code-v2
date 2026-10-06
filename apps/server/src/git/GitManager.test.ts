@@ -319,6 +319,7 @@ function createTextGeneration(
       Effect.succeed({
         title: "Update workflow",
       }),
+    generatePromptSuggestion: () => Effect.succeed({ suggestion: "" }),
     ...overrides,
   };
 
@@ -367,6 +368,7 @@ function createTextGeneration(
             }),
         ),
       ),
+    generatePromptSuggestion: (input) => implementation.generatePromptSuggestion(input),
   };
 }
 

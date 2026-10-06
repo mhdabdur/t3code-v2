@@ -61,6 +61,13 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       staleTimeMs: 30_000,
       idleTtlMs: 60_000,
     }),
+    // Keyed by the reply it follows, so each reply is guessed at most once.
+    promptSuggestion: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:orchestration:prompt-suggestion",
+      tag: ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
+      staleTimeMs: 600_000,
+      idleTtlMs: 600_000,
+    }),
     archivedShellSnapshot: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:archived-shell-snapshot",
       tag: ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,

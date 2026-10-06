@@ -4,10 +4,12 @@ import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
   buildPrContentPrompt,
+  buildPromptSuggestionPrompt,
   buildThreadTitlePrompt,
 } from "./TextGenerationPrompts.ts";
 import {
   normalizeCliError,
+  sanitizePromptSuggestion,
   sanitizeThreadTitle,
   toJsonSchemaObject,
 } from "./TextGenerationUtils.ts";
@@ -361,5 +363,26 @@ describe("normalizeCliError", () => {
 
     expect(result.detail).toBe("Failed to generate a commit message");
     expect(result.message).not.toContain("secret-token");
+  });
+});
+
+describe("buildPromptSuggestionPrompt", () => {
+  it("keeps the latest reply when the conversation is long", () => {
+    const result = buildPromptSuggestionPrompt({
+      conversation: `USER:\n${"a".repeat(20_000)}\n\nASSISTANT:\nWant me to run the tests?`,
+    });
+
+    expect(result.prompt).toContain("Want me to run the tests?");
+    expect(result.prompt.length).toBeLessThan(12_000);
+  });
+});
+
+describe("sanitizePromptSuggestion", () => {
+  it("keeps one unquoted line", () => {
+    expect(sanitizePromptSuggestion('  "Run the tests"\nand more')).toBe("Run the tests");
+  });
+
+  it("drops a suggestion too long to be a prompt guess", () => {
+    expect(sanitizePromptSuggestion("x".repeat(201))).toBe("");
   });
 });

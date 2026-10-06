@@ -127,3 +127,18 @@ export function normalizeCliError(
     cause: error,
   });
 }
+
+const MAX_PROMPT_SUGGESTION_CHARS = 200;
+
+/** One line of plain text, or empty when the model had nothing useful to offer. */
+export function sanitizePromptSuggestion(raw: string): string {
+  const line =
+    raw
+      .trim()
+      .split(/\r?\n/g)[0]
+      ?.trim()
+      .replace(/^['"`]+|['"`]+$/g, "")
+      .trim()
+      .replace(/\s+/g, " ") ?? "";
+  return line.length <= MAX_PROMPT_SUGGESTION_CHARS ? line : "";
+}

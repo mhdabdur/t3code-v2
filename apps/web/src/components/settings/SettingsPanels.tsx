@@ -611,6 +611,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.composerRichTextEnabled !== DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled
         ? ["Rich text composer"]
         : []),
+      ...(settings.promptSuggestionsEnabled !== DEFAULT_UNIFIED_SETTINGS.promptSuggestionsEnabled
+        ? ["Prompt suggestions"]
+        : []),
       ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? ["Send shortcut"] : []),
       ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
         ? ["Follow-up behavior"]
@@ -677,6 +680,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.confirmThreadUnpin,
       settings.composerCollapseOnScroll,
       settings.composerRichTextEnabled,
+      settings.promptSuggestionsEnabled,
       settings.sendShortcut,
       settings.followUpBehavior,
       settings.addProjectBaseDirectory,
@@ -799,6 +803,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerCollapseOnScroll: DEFAULT_UNIFIED_SETTINGS.composerCollapseOnScroll,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
+      promptSuggestionsEnabled: DEFAULT_UNIFIED_SETTINGS.promptSuggestionsEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
@@ -2751,6 +2756,33 @@ export function GeneralSettingsPanel() {
                 updateSettings({ composerRichTextEnabled: Boolean(checked) })
               }
               aria-label="Rich text composer"
+            />
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("prompt-suggestions")}
+          description="After each reply, suggest a next prompt in the empty composer. Press Tab to use it. Each suggestion is one extra request to the text generation model."
+          resetAction={
+            settings.promptSuggestionsEnabled !==
+            DEFAULT_UNIFIED_SETTINGS.promptSuggestionsEnabled ? (
+              <SettingResetButton
+                label="prompt suggestions"
+                onClick={() =>
+                  updateSettings({
+                    promptSuggestionsEnabled: DEFAULT_UNIFIED_SETTINGS.promptSuggestionsEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.promptSuggestionsEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ promptSuggestionsEnabled: Boolean(checked) })
+              }
+              aria-label="Prompt suggestions"
             />
           }
         />

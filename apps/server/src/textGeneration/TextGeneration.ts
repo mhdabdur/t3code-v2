@@ -76,6 +76,19 @@ export interface ThreadTitleGenerationInput {
   modelSelection: ModelSelection;
 }
 
+export interface PromptSuggestionGenerationInput {
+  cwd: string;
+  /** The conversation so far, oldest first, ending with the agent's latest reply. */
+  conversation: string;
+  /** What model and provider to use for generation. */
+  modelSelection: ModelSelection;
+}
+
+export interface PromptSuggestionGenerationResult {
+  /** Empty when the conversation has no obvious next step. */
+  suggestion: string;
+}
+
 export interface ThreadTitleGenerationResult {
   title: string;
   needsRefinement?: boolean | undefined;
@@ -112,6 +125,11 @@ export class TextGeneration extends Context.Service<
     readonly generateThreadTitle: (
       input: ThreadTitleGenerationInput,
     ) => Effect.Effect<ThreadTitleGenerationResult, TextGenerationError>;
+
+    /** Guess the user's next prompt from the conversation so far. */
+    readonly generatePromptSuggestion: (
+      input: PromptSuggestionGenerationInput,
+    ) => Effect.Effect<PromptSuggestionGenerationResult, TextGenerationError>;
   }
 >()("t3/textGeneration/TextGeneration") {}
 
@@ -119,7 +137,8 @@ type TextGenerationOp =
   | "generateCommitMessage"
   | "generatePrContent"
   | "generateBranchName"
-  | "generateThreadTitle";
+  | "generateThreadTitle"
+  | "generatePromptSuggestion";
 
 const resolveInstance = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
@@ -171,6 +190,10 @@ export const make = Effect.gen(function* () {
             return yield* textGeneration.generateThreadTitle({ ...input, linkedContext });
           }),
         ),
+      ),
+    generatePromptSuggestion: (input) =>
+      resolveInstance(registry, "generatePromptSuggestion", input.modelSelection.instanceId).pipe(
+        Effect.flatMap((textGeneration) => textGeneration.generatePromptSuggestion(input)),
       ),
   });
 });

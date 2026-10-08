@@ -18,6 +18,8 @@ import { composerFloatingLayerProps } from "./composerEventScope";
 export interface ComposerUsageLimits {
   readonly limits: ServerProviderUsageLimits;
   readonly planLabel: string | null;
+  /** Why the limits cannot be drawn as bars, such as a failed read. */
+  readonly notice: string | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -35,6 +37,8 @@ function formatPercentage(value: number | null): string | null {
 export function ContextWindowMeter(props: {
   usage: ContextWindowSnapshot | null;
   usageLimits?: ComposerUsageLimits | null;
+  /** Runs each time the popover opens. */
+  onOpen?: (() => void) | undefined;
   modelDisplayName?: string | null;
   onCompact?: (() => void) | undefined;
   compactDisabled?: boolean | undefined;
@@ -43,6 +47,7 @@ export function ContextWindowMeter(props: {
   const {
     usage,
     usageLimits,
+    onOpen,
     modelDisplayName,
     onCompact,
     compactDisabled,
@@ -61,7 +66,7 @@ export function ContextWindowMeter(props: {
     : "color-mix(in oklab, var(--color-muted-foreground) 72%, transparent)";
 
   return (
-    <Popover>
+    <Popover onOpenChange={(open) => (open ? onOpen?.() : undefined)}>
       <PopoverTrigger
         openOnHover
         delay={150}
@@ -250,6 +255,9 @@ function UsageLimitsSection({
           </span>
           <ArrowRightIcon aria-hidden="true" className="size-3.5 shrink-0" />
         </button>
+        {usageLimits.notice ? (
+          <div className="text-pretty text-secondary-label text-2xs">{usageLimits.notice}</div>
+        ) : null}
         {usageLimits.limits.windows.map((window) => {
           const used = Math.round(Math.max(0, Math.min(100, window.usedPercent)));
           const resets = resetLabel(window, now, timestampFormat);

@@ -1354,6 +1354,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   compact: boolean;
   activeContextWindow: ContextWindowSnapshot | null;
   usageLimits: ComposerUsageLimits | null;
+  onUsageLimitsOpen: () => void;
   reserveContextWindowMeter: boolean;
   activeThreadModelDisplayName: string | null;
   isPreparingWorktree: boolean;
@@ -1393,6 +1394,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         <ContextWindowMeter
           usage={props.activeContextWindow}
           usageLimits={props.usageLimits}
+          onOpen={props.onUsageLimitsOpen}
           modelDisplayName={props.activeThreadModelDisplayName}
           onCompact={props.onCompactContext}
           compactDisabled={props.compactDisabled}
@@ -1688,6 +1690,7 @@ export interface ChatComposerProps {
 // --------------------------------------------------------------------------
 
 const PROMPT_SUGGESTION_MAX_AGE_MS = 10 * 60_000;
+const USAGE_LIMITS_STALE_MS = 5 * 60_000;
 
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const {
@@ -2362,9 +2365,32 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   );
   const composerUsageLimits = useMemo<ComposerUsageLimits | null>(() => {
     const limits = selectedProviderStatus?.usageLimits;
-    if (!limits || limitsNotice(limits) !== null) return null;
-    return { limits, planLabel: selectedProviderStatus?.auth.label ?? null };
+    // API-key accounts never report limits; there is nothing to show or retry.
+    if (!limits || limits.unavailable?.reason === "unsupported") return null;
+    return {
+      limits,
+      planLabel: selectedProviderStatus?.auth.label ?? null,
+      notice: limitsNotice(limits),
+    };
   }, [selectedProviderStatus]);
+  // Limits are read once at startup and then only on background refreshes, so a
+  // failed or old read for this account is re-read when the meter is opened.
+  const refreshComposerUsageLimits = useCallback(() => {
+    const limits = selectedProviderStatus?.usageLimits;
+    if (!selectedProviderEntry || !limits) return;
+    const checkedAt = Date.parse(limits.checkedAt);
+    if (
+      limitsNotice(limits) === null &&
+      Number.isFinite(checkedAt) &&
+      Date.now() - checkedAt < USAGE_LIMITS_STALE_MS
+    ) {
+      return;
+    }
+    void refreshProviders({
+      environmentId,
+      input: { instanceId: selectedProviderEntry.instanceId },
+    });
+  }, [environmentId, refreshProviders, selectedProviderEntry, selectedProviderStatus]);
   // Only replies that landed recently get a guess, so browsing old threads costs nothing.
   const lastTimelineMessage = promptHistoryMessages.at(-1);
   const promptSuggestionMessageId =
@@ -7564,6 +7590,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         : null
                     }
                     usageLimits={composerUsageLimits}
+                    onUsageLimitsOpen={refreshComposerUsageLimits}
                     reserveContextWindowMeter={reserveContextWindowMeter}
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
                     pendingAction={pendingPrimaryAction}

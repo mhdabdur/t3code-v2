@@ -93,7 +93,7 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-const APP_BASE_NAME = "Damn Code";
+const APP_BASE_NAME = "aDamn Code";
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;

@@ -1097,6 +1097,21 @@ export function createServerEnvironmentAtoms<R, E>(
       staleTimeMs: 60_000,
       refreshTrigger: ({ environmentId }) => usageScanSettingsAtom(environmentId),
     }),
+    // Refetched on each visit to Publish File; pages published meanwhile show then.
+    libraryArtifacts: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:library-artifacts",
+      tag: WS_METHODS.libraryListArtifacts,
+      staleTimeMs: 0,
+    }),
+    installedPlugins: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:installed-plugins",
+      tag: WS_METHODS.libraryListPlugins,
+      staleTimeMs: 0,
+    }),
+    deleteLibraryArtifact: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:delete-library-artifact",
+      tag: WS_METHODS.libraryDeleteArtifact,
+    }),
     resourceTelemetry: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:server:resource-telemetry",
       tag: WS_METHODS.subscribeResourceTelemetry,

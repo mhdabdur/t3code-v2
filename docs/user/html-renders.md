@@ -4,6 +4,6 @@ Agents can answer with a page instead of only text: a chart, table, diagram, ima
 
 Pages use your current theme, including custom themes, and follow light and dark mode as you switch. Scripts run inside the page, but it is sandboxed away from T3 Code and your session. Links you click in a page open in your browser. Use the expand button to open a page full size; from there you can view its source or save it.
 
-Agents can place local images in a page by file path. T3 Code embeds them when the page is published, so the page keeps working after the original files move or are deleted. Deleting the thread deletes its pages.
+Agents can place local images in a page by file path. T3 Code embeds them when the page is published, so the page keeps working after the original files move or are deleted. Deleting the thread deletes its pages there, but each page also stays in **Publish File** in the sidebar, which lists every page agents have published across threads and providers. Asking an agent to revise a page saves the result as a new version of it, and older versions stay available.
 
 Before publishing, agents check their work with screenshots from a small headless browser that T3 Code keeps for itself; it never uses a browser you installed. The first preview on a machine downloads it once (about 120 MB) into T3 Code's data folder, so that preview can take a minute. Pages publish without it.

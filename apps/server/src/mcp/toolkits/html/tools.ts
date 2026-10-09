@@ -12,6 +12,7 @@ import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
 
 import * as HtmlRender from "../../../htmlRender/HtmlRender.ts";
+import * as ArtifactLibrary from "../../../library/ArtifactLibrary.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
@@ -78,6 +79,12 @@ const HtmlRenderTool = Tool.make(HTML_RENDER_TOOL_NAME, {
     height: Schema.Int.annotate({
       description: `The frame height in CSS pixels, ${HTML_RENDER_MIN_HEIGHT}-${HTML_RENDER_MAX_HEIGHT}. Use html_preview's contentHeight, or less to make long content scroll inside the frame.`,
     }),
+    artifactId: Schema.optional(
+      Schema.String.annotate({
+        description:
+          "Every page is saved to the user's Library. To revise a page you published earlier instead of adding a new one, pass the artifactId that call returned; the page becomes that artifact's next version.",
+      }),
+    ),
   }),
   success: Schema.Struct({
     htmlRender: Schema.Struct({
@@ -86,6 +93,8 @@ const HtmlRenderTool = Tool.make(HTML_RENDER_TOOL_NAME, {
       height: Schema.Number,
       heights: Schema.optional(Schema.Array(Schema.Tuple([Schema.Int, Schema.Int]))),
     }),
+    /** Absent when saving to the Library failed; the page still shows in the thread. */
+    artifactId: Schema.optional(Schema.String),
     message: Schema.String,
   }),
   failure: OrchestratorMcpFailure,
@@ -94,6 +103,7 @@ const HtmlRenderTool = Tool.make(HTML_RENDER_TOOL_NAME, {
     McpInvocationContext.McpInvocationContext,
     ThreadManagementService.ThreadManagementService,
     HtmlRender.HtmlRender,
+    ArtifactLibrary.ArtifactLibrary,
   ],
 })
   .annotate(Tool.Title, "Render HTML")

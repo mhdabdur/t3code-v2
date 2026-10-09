@@ -2,6 +2,7 @@ import { OrchestratorMcpFailure } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 
 import * as HtmlRender from "../../../htmlRender/HtmlRender.ts";
+import * as ArtifactLibrary from "../../../library/ArtifactLibrary.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { readMutationCaller } from "../../threadAccess.ts";
 import { HtmlPreviewToolkit, HtmlRenderToolkit, type HtmlToolkit } from "./tools.ts";
@@ -47,11 +48,23 @@ const handlers = {
       const { scope } = yield* readMutationCaller();
       const { thread } = yield* McpInvocationContext.requireThreadScope(scope, "html_render");
       const htmlRender = yield* HtmlRender.HtmlRender;
+      const library = yield* ArtifactLibrary.ArtifactLibrary;
+      const { artifactId, ...page } = input;
       const reference = yield* htmlRender
-        .publish({ threadId: thread.threadId, ...input })
+        .publish({ threadId: thread.threadId, ...page })
         .pipe(Effect.mapError(toFailure));
+      // The page already shows in the thread; a Library failure must not undo that.
+      const saved = yield* library
+        .recordRender({ threadId: thread.threadId, reference, artifactId })
+        .pipe(
+          Effect.tapError((cause) =>
+            Effect.logWarning("Could not save a page to the Library", { cause }),
+          ),
+          Effect.option,
+        );
       return {
         htmlRender: reference,
+        ...(saved._tag === "Some" ? { artifactId: saved.value.artifactId } : {}),
         message:
           "Shown to the reader above your reply. Don't mention or describe the page; reply with only what it doesn't already say.",
       };

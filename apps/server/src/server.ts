@@ -152,6 +152,8 @@ import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as PromptSuggestionService from "./orchestration-v2/PromptSuggestionService.ts";
+import * as ArtifactLibrary from "./library/ArtifactLibrary.ts";
+import * as InstalledPlugins from "./library/InstalledPlugins.ts";
 import * as ResourceCleanupService from "./orchestration-v2/ResourceCleanupService.ts";
 import * as ThreadSettlementService from "./orchestration-v2/ThreadSettlementService.ts";
 import * as ThreadPullRequestService from "./orchestration-v2/ThreadPullRequestService.ts";
@@ -554,7 +556,9 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   ReplayMarkers.layer,
 ).pipe(
   // Core Services
-  Layer.provideMerge(PromptSuggestionService.layer),
+  Layer.provideMerge(
+    Layer.mergeAll(PromptSuggestionService.layer, ArtifactLibrary.layer, InstalledPlugins.layer),
+  ),
   Layer.provideMerge(layerOrchestrationApplication),
   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),
   Layer.provideMerge(Layer.merge(ProjectStore.layer, ThreadSearch.layer)),

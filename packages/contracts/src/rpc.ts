@@ -143,6 +143,12 @@ import {
   OrchestrationSuggestNextPromptResult,
 } from "./promptSuggestion.ts";
 import {
+  LibraryDeleteArtifactInput,
+  LibraryError,
+  LibraryListArtifactsResult,
+  LibraryListPluginsResult,
+} from "./library.ts";
+import {
   ProviderUploadFeedbackError,
   ProviderUploadFeedbackInput,
   ProviderUploadFeedbackResult,
@@ -476,6 +482,9 @@ export const WS_METHODS = {
   serverReportHostPowerState: "server.reportHostPowerState",
   serverGetBackgroundPolicy: "server.getBackgroundPolicy",
   serverGetUsageSummary: "server.getUsageSummary",
+  libraryListArtifacts: "library.listArtifacts",
+  libraryDeleteArtifact: "library.deleteArtifact",
+  libraryListPlugins: "library.listPlugins",
   serverRefreshUsageRates: "server.refreshUsageRates",
 
   // Scheduled tasks
@@ -843,6 +852,24 @@ const WsServerRetryResourceTelemetryRpc = Rpc.make(WS_METHODS.serverRetryResourc
   payload: Schema.Struct({}),
   success: ResourceTelemetryRetryResult,
   error: EnvironmentAuthorizationError,
+});
+
+const WsLibraryListArtifactsRpc = Rpc.make(WS_METHODS.libraryListArtifacts, {
+  payload: Schema.Struct({}),
+  success: LibraryListArtifactsResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryDeleteArtifactRpc = Rpc.make(WS_METHODS.libraryDeleteArtifact, {
+  payload: LibraryDeleteArtifactInput,
+  success: Schema.Struct({}),
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryListPluginsRpc = Rpc.make(WS_METHODS.libraryListPlugins, {
+  payload: Schema.Struct({}),
+  success: LibraryListPluginsResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
 });
 
 const WsServerGetUsageSummaryRpc = Rpc.make(WS_METHODS.serverGetUsageSummary, {
@@ -1801,6 +1828,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetResourceTelemetryHistoryRpc,
   WsServerRetryResourceTelemetryRpc,
   WsServerGetUsageSummaryRpc,
+  WsLibraryListArtifactsRpc,
+  WsLibraryDeleteArtifactRpc,
+  WsLibraryListPluginsRpc,
   WsServerRefreshUsageRatesRpc,
   WsServerSignalProcessRpc,
   WsScheduledTasksListRpc,

@@ -158,6 +158,8 @@ import {
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as PromptSuggestionService from "./orchestration-v2/PromptSuggestionService.ts";
+import * as ArtifactLibrary from "./library/ArtifactLibrary.ts";
+import * as InstalledPlugins from "./library/InstalledPlugins.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
 import {
@@ -1201,6 +1203,8 @@ const layerWsRpc = (
       const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
       const promptSuggestions = yield* PromptSuggestionService.PromptSuggestionService;
+      const artifactLibrary = yield* ArtifactLibrary.ArtifactLibrary;
+      const installedPlugins = yield* InstalledPlugins.InstalledPlugins;
 
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const analytics = yield* AnalyticsService.AnalyticsService;
@@ -2646,6 +2650,24 @@ const layerWsRpc = (
           observeRpcEffect(WS_METHODS.serverGetUsageSummary, usage.readSummary(input), {
             "rpc.aggregate": "server",
           }),
+        [WS_METHODS.libraryListArtifacts]: (_input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryListArtifacts,
+            artifactLibrary.list.pipe(Effect.map((artifacts) => ({ artifacts }))),
+            { "rpc.aggregate": "library" },
+          ),
+        [WS_METHODS.libraryListPlugins]: (_input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryListPlugins,
+            installedPlugins.list.pipe(Effect.map((groups) => ({ groups }))),
+            { "rpc.aggregate": "library" },
+          ),
+        [WS_METHODS.libraryDeleteArtifact]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryDeleteArtifact,
+            artifactLibrary.remove(input.artifactId).pipe(Effect.as({})),
+            { "rpc.aggregate": "library" },
+          ),
         [WS_METHODS.serverRefreshUsageRates]: (_input) =>
           observeRpcEffect(WS_METHODS.serverRefreshUsageRates, usage.refreshRates, {
             "rpc.aggregate": "server",

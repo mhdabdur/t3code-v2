@@ -199,6 +199,7 @@ import {
 } from "./Sidebar.logic";
 import { sortThreads } from "../lib/threadSort";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
+import { SidebarLibraryNav } from "./sidebar/SidebarLibraryNav";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useIsMobile } from "~/hooks/useMediaQuery";
 import { CommandDialogTrigger } from "./ui/command";
@@ -1201,6 +1202,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     reportFailure: false,
   });
   const updateSettings = useUpdateClientSettings();
+  const archivedProjects = useClientSettings((settings) => settings.sidebarArchivedProjects);
   const sidebarThreadPreviewCount = useClientSettings<SidebarThreadPreviewCount>(
     (settings) => settings.sidebarThreadPreviewCount,
   );
@@ -1755,6 +1757,15 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
           };
         };
 
+        actionHandlers.set("archive-project", () => {
+          updateSettings({
+            sidebarArchivedProjects: {
+              ...archivedProjects,
+              [project.projectKey]: project.displayName,
+            },
+          });
+        });
+
         actionHandlers.set("project-settings", () => {
           if (isMobile) setOpenMobile(false);
           void router.navigate({
@@ -1769,6 +1780,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             buildTargetedItem("grouping", "Group into..."),
             buildTargetedItem("copy-path", "Copy Path"),
             { id: "project-settings", label: "Project settings", icon: "settings" },
+            { id: "archive-project", label: "Archive project" },
             buildTargetedItem("delete", "Remove", {
               destructive: true,
             }),
@@ -1787,6 +1799,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       })();
     },
     [
+      archivedProjects,
       copyPathToClipboard,
       handleRemoveProject,
       isMobile,
@@ -1794,10 +1807,12 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       openProjectRenameDialog,
       project.groupedProjectCount,
       project.memberProjects,
+      project.displayName,
       project.projectKey,
       router,
       setOpenMobile,
       suppressProjectClickForContextMenuRef,
+      updateSettings,
     ],
   );
 
@@ -2982,17 +2997,20 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
         // Lifted above the stage backdrop, whose fade bleeds below the
         // header and would otherwise paint across the search row's outline.
         <SidebarGroup className="z-[1]">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <CommandDialogTrigger
-                render={<SidebarMenuButton data-testid="command-palette-trigger" />}
-              >
-                <SearchIcon />
-                <span className="flex-1 truncate">Search</span>
-                {commandPaletteShortcutLabel ? <Kbd>{commandPaletteShortcutLabel}</Kbd> : null}
-              </CommandDialogTrigger>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <div className="flex flex-col gap-2">
+            <SidebarLibraryNav />
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <CommandDialogTrigger
+                  render={<SidebarMenuButton data-testid="command-palette-trigger" />}
+                >
+                  <SearchIcon />
+                  <span className="flex-1 truncate">Search</span>
+                  {commandPaletteShortcutLabel ? <Kbd>{commandPaletteShortcutLabel}</Kbd> : null}
+                </CommandDialogTrigger>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </div>
         </SidebarGroup>
       }
     >
@@ -3148,6 +3166,7 @@ export default function LegacySidebar() {
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const sidebarThreadPreviewCount = useClientSettings((s) => s.sidebarThreadPreviewCount);
   const updateSettings = useUpdateClientSettings();
+  const archivedProjects = useClientSettings((settings) => settings.sidebarArchivedProjects);
   const handleNewThread = useNewThreadHandler();
   const { archiveThread, deleteThread, markThreadUnread } = useThreadActions();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -3425,10 +3444,12 @@ export default function LegacySidebar() {
     [sidebarThreads],
   );
   const sortedProjects = useMemo(() => {
-    const sortableProjects = sidebarProjects.map((project) => ({
-      ...project,
-      id: project.projectKey,
-    }));
+    const sortableProjects = sidebarProjects
+      .filter((project) => archivedProjects[project.projectKey] === undefined)
+      .map((project) => ({
+        ...project,
+        id: project.projectKey,
+      }));
     const sortableThreads = visibleThreads.map((thread) => {
       const physicalKey =
         projectPhysicalKeyByScopedRef.get(
@@ -3448,6 +3469,7 @@ export default function LegacySidebar() {
       return resolvedProject ? [resolvedProject] : [];
     });
   }, [
+    archivedProjects,
     sidebarProjectSortOrder,
     physicalToLogicalKey,
     projectPhysicalKeyByScopedRef,

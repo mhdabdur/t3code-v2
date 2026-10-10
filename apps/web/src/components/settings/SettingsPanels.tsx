@@ -76,6 +76,7 @@ import {
   useTheme,
 } from "../../hooks/useTheme";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { useClientSettings, useUpdateClientSettings } from "../../hooks/useSettings";
 import {
   useScopedSettings,
   useScopedSettingsMixed,
@@ -3424,6 +3425,11 @@ export function ArchivedThreadsPanel() {
     isLoading: isLoadingArchive,
     refresh: refreshArchivedThreads,
   } = useArchivedThreadSnapshots(scope.environmentIds);
+  const archivedProjects = useClientSettings((settings) => settings.sidebarArchivedProjects);
+  const updateClientSettings = useUpdateClientSettings();
+  const archivedProjectEntries = Object.entries(archivedProjects).toSorted(([, left], [, right]) =>
+    left.localeCompare(right),
+  );
 
   const archivedGroups = useMemo(() => {
     const selectedProjectKeys =
@@ -3523,6 +3529,32 @@ export function ArchivedThreadsPanel() {
 
   return (
     <SettingsPageContainer>
+      {archivedProjectEntries.length > 0 ? (
+        <SettingsSection title="Archived projects">
+          {archivedProjectEntries.map(([projectKey, projectName]) => (
+            <SettingsRow
+              key={projectKey}
+              title={projectName}
+              description="Hidden from the sidebar."
+              control={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="shrink-0"
+                  onClick={() => {
+                    const { [projectKey]: _unarchived, ...remaining } = archivedProjects;
+                    updateClientSettings({ sidebarArchivedProjects: remaining });
+                  }}
+                >
+                  <ArchiveX className="size-3.5" />
+                  <span>Unarchive</span>
+                </Button>
+              }
+            />
+          ))}
+        </SettingsSection>
+      ) : null}
       {archivedGroups.length === 0 ? (
         <SettingsSection
           id={isLoadingArchive ? undefined : searchableSetting("archive").id}

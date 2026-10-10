@@ -153,7 +153,10 @@ import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as PromptSuggestionService from "./orchestration-v2/PromptSuggestionService.ts";
 import * as ArtifactLibrary from "./library/ArtifactLibrary.ts";
+import * as ArtifactPublisher from "./library/ArtifactPublisher.ts";
 import * as InstalledPlugins from "./library/InstalledPlugins.ts";
+import * as LibraryAccounts from "./library/LibraryAccounts.ts";
+import * as SkillManager from "./library/SkillManager.ts";
 import * as ResourceCleanupService from "./orchestration-v2/ResourceCleanupService.ts";
 import * as ThreadSettlementService from "./orchestration-v2/ThreadSettlementService.ts";
 import * as ThreadPullRequestService from "./orchestration-v2/ThreadPullRequestService.ts";
@@ -557,7 +560,14 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
 ).pipe(
   // Core Services
   Layer.provideMerge(
-    Layer.mergeAll(PromptSuggestionService.layer, ArtifactLibrary.layer, InstalledPlugins.layer),
+    Layer.mergeAll(
+      PromptSuggestionService.layer,
+      Layer.mergeAll(
+        InstalledPlugins.layer,
+        SkillManager.layer,
+        ArtifactPublisher.layer.pipe(Layer.provide(ArtifactPublisher.layerClaudeArtifactSession)),
+      ).pipe(Layer.provideMerge(Layer.merge(LibraryAccounts.layer, ArtifactLibrary.layer))),
+    ),
   ),
   Layer.provideMerge(layerOrchestrationApplication),
   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),
@@ -665,6 +675,7 @@ const layerMakeRoutes = Layer.mergeAll(
     ),
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
+    ServerHttp.layerSharedArtifactRoute,
     ServerHttp.layerAttachmentUploadRoute,
     DeviceHubProxy.layer,
     ServerHttp.layerStaticAndDevRoute,

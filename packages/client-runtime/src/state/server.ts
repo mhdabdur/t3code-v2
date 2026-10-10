@@ -1112,6 +1112,48 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:delete-library-artifact",
       tag: WS_METHODS.libraryDeleteArtifact,
     }),
+    // Keyed by account and search text; the server caches the marketplace listing.
+    availablePlugins: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:available-plugins",
+      tag: WS_METHODS.libraryListAvailablePlugins,
+      staleTimeMs: 0,
+    }),
+    updateLibraryArtifact: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:update-library-artifact",
+      tag: WS_METHODS.libraryUpdateArtifact,
+    }),
+    publishLibraryArtifact: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:publish-library-artifact",
+      tag: WS_METHODS.libraryPublishArtifact,
+    }),
+    unpublishLibraryArtifact: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:unpublish-library-artifact",
+      tag: WS_METHODS.libraryUnpublishArtifact,
+    }),
+    duplicateLibraryArtifact: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:duplicate-library-artifact",
+      tag: WS_METHODS.libraryDuplicateArtifact,
+    }),
+    installPlugin: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:install-plugin",
+      tag: WS_METHODS.libraryInstallPlugin,
+    }),
+    uninstallPlugin: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:uninstall-plugin",
+      tag: WS_METHODS.libraryUninstallPlugin,
+    }),
+    addPluginMarketplace: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:add-plugin-marketplace",
+      tag: WS_METHODS.libraryAddPluginMarketplace,
+    }),
+    addSkill: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:add-skill",
+      tag: WS_METHODS.libraryAddSkill,
+    }),
+    removeSkill: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:remove-skill",
+      tag: WS_METHODS.libraryRemoveSkill,
+    }),
     resourceTelemetry: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:server:resource-telemetry",
       tag: WS_METHODS.subscribeResourceTelemetry,

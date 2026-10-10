@@ -105,4 +105,73 @@ describe("ArtifactLibrary", () => {
       ).toBeNull();
     }).pipe(Effect.provide(layerTest)),
   );
+
+  it.effect("serves a shared artifact's current page until sharing stops", () =>
+    Effect.gen(function* () {
+      const library = yield* ArtifactLibrary.ArtifactLibrary;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const saved = yield* library.recordRender({
+        threadId,
+        reference: yield* publish("<p>draft</p>", "Report"),
+      });
+      expect((yield* library.list)[0]?.shareToken).toBeNull();
+
+      const shared = yield* library.update({ artifactId: saved.artifactId, shared: true });
+      const token = shared.shareToken!;
+      // Sharing again, or changing something else, keeps the link people already have.
+      const renamed = yield* library.update({
+        artifactId: saved.artifactId,
+        shared: true,
+        title: "Final report",
+        pinned: true,
+      });
+      expect(renamed).toMatchObject({ shareToken: token, title: "Final report", pinned: true });
+
+      yield* library.recordRender({
+        threadId,
+        reference: yield* publish("<p>final</p>", "Final report"),
+        artifactId: saved.artifactId,
+      });
+      const page = yield* library.findShared(token);
+      expect(yield* fileSystem.readFileString(page!.path)).toContain("<p>final</p>");
+      expect(yield* library.findShared(`${token}x`)).toBeNull();
+
+      yield* library.update({ artifactId: saved.artifactId, shared: false });
+      expect(yield* library.findShared(token)).toBeNull();
+      // A link from before does not come back with the next share.
+      const reshared = yield* library.update({ artifactId: saved.artifactId, shared: true });
+      expect(reshared.shareToken).not.toBe(token);
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("duplicates the current version into a private artifact of its own", () =>
+    Effect.gen(function* () {
+      const library = yield* ArtifactLibrary.ArtifactLibrary;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const config = yield* ServerConfig.ServerConfig;
+      const saved = yield* library.recordRender({
+        threadId,
+        reference: yield* publish("<p>one</p>", "Chart"),
+      });
+      yield* library.recordRender({
+        threadId,
+        reference: yield* publish("<p>two</p>", "Chart"),
+        artifactId: saved.artifactId,
+      });
+      yield* library.update({ artifactId: saved.artifactId, shared: true, pinned: true });
+
+      const copy = yield* library.duplicate(saved.artifactId);
+
+      expect(copy).toMatchObject({ title: "Chart copy", pinned: false, shareToken: null });
+      expect(copy.versions.map((version) => version.version)).toEqual([1]);
+      // Deleting the original must not take the copy's page with it.
+      yield* library.remove(saved.artifactId);
+      const page = resolveAttachmentPathById({
+        attachmentsDir: config.attachmentsDir,
+        attachmentId: copy.versions[0]!.attachmentId,
+      });
+      expect(yield* fileSystem.readFileString(page!)).toContain("<p>two</p>");
+      expect((yield* library.list).map((artifact) => artifact.id)).toEqual([copy.id]);
+    }).pipe(Effect.provide(layerTest)),
+  );
 });

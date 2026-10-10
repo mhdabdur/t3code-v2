@@ -5,32 +5,121 @@
  * tables in Codex's `config.toml`. Plugins an account gets online (claude.ai or
  * ChatGPT) leave no trace on disk and are not listed.
  *
+ * Installing and removing go through the account's own CLI, which owns the
+ * marketplace checkout, the cache and the config edits.
+ *
  * @module library/InstalledPlugins
  */
-import * as NodeOS from "node:os";
-
-import type { InstalledPlugin, InstalledPluginGroup, ProviderDriverKind } from "@t3tools/contracts";
+import {
+  LibraryError,
+  type AvailablePlugin,
+  type InstalledPlugin,
+  type InstalledPluginGroup,
+  type LibraryListAvailablePluginsResult,
+  type ProviderInstanceId,
+} from "@t3tools/contracts";
+import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 
-import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ServerSettings from "../serverSettings.ts";
+import * as LibraryAccounts from "./LibraryAccounts.ts";
 
 export class InstalledPlugins extends Context.Service<
   InstalledPlugins,
   {
     /** One group per Claude or Codex account; other providers have no plugins to read. */
     readonly list: Effect.Effect<ReadonlyArray<InstalledPluginGroup>>;
+    /** What the account's marketplaces offer, best matches for `query` first. */
+    readonly available: (input: {
+      readonly instanceId: ProviderInstanceId;
+      readonly query: string;
+    }) => Effect.Effect<LibraryListAvailablePluginsResult, LibraryError>;
+    readonly install: (input: PluginTarget) => Effect.Effect<void, LibraryError>;
+    readonly uninstall: (input: PluginTarget) => Effect.Effect<void, LibraryError>;
+    /** `source` is `owner/repo`, a git URL, or a folder on this machine. */
+    readonly addMarketplace: (input: {
+      readonly instanceId: ProviderInstanceId;
+      readonly source: string;
+    }) => Effect.Effect<void, LibraryError>;
   }
 >()("t3/library/InstalledPlugins") {}
 
-const CONFIG_FOLDERS: Readonly<Record<string, { env: string; folder: string }>> = {
-  claudeAgent: { env: "CLAUDE_CONFIG_DIR", folder: ".claude" },
-  codex: { env: "CODEX_HOME", folder: ".codex" },
-};
+interface PluginTarget {
+  readonly instanceId: ProviderInstanceId;
+  readonly pluginId: string;
+}
+
+const AVAILABLE_LIMIT = 60;
+// Installing clones the plugin's repository, which a slow connection stretches.
+const INSTALL_TIMEOUT = "5 minutes";
+
+/** A CLI argument that cannot be read as a flag. */
+const isPlainArgument = (value: string) => value.length > 0 && !value.startsWith("-");
+
+/** The `available` and `installed` lists of `claude|codex plugin list --json --available`. */
+export function parseAvailablePlugins(json: string): ReadonlyArray<AvailablePlugin> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const root = asRecord(parsed);
+  const entries = (value: unknown) => (Array.isArray(value) ? value.map(asRecord) : []);
+  const byId = new Map<string, AvailablePlugin>();
+  const add = (entry: Record<string, unknown>, installed: boolean) => {
+    // Claude names an installed plugin `id`; everything else is `pluginId`.
+    const id = readString(entry.pluginId) ?? readString(entry.id);
+    if (!id) return;
+    const split = splitId(id);
+    const known = byId.get(id);
+    byId.set(id, {
+      id,
+      name: readString(entry.name) ?? split.name,
+      marketplace: readString(entry.marketplaceName) ?? split.marketplace,
+      description: readString(entry.description) ?? known?.description ?? null,
+      installCount:
+        typeof entry.installCount === "number" ? entry.installCount : (known?.installCount ?? null),
+      installed: installed || entry.installed === true || known?.installed === true,
+    });
+  };
+  for (const entry of entries(root.available)) add(entry, false);
+  for (const entry of entries(root.installed)) add(entry, true);
+  return [...byId.values()];
+}
+
+/** Matches of `query`, most installed first, then by name. */
+export function searchAvailablePlugins(
+  plugins: ReadonlyArray<AvailablePlugin>,
+  query: string,
+): LibraryListAvailablePluginsResult {
+  const needle = query.trim().toLowerCase();
+  const matches = plugins
+    .filter(
+      (plugin) =>
+        needle.length === 0 ||
+        plugin.name.toLowerCase().includes(needle) ||
+        (plugin.marketplace ?? "").toLowerCase().includes(needle) ||
+        (plugin.description ?? "").toLowerCase().includes(needle),
+    )
+    .toSorted(
+      (a, b) =>
+        Number(b.name.toLowerCase() === needle) - Number(a.name.toLowerCase() === needle) ||
+        (b.installCount ?? 0) - (a.installCount ?? 0) ||
+        a.name.localeCompare(b.name),
+    );
+  return {
+    plugins: matches.slice(0, AVAILABLE_LIMIT),
+    total: matches.length,
+    marketplaces: [
+      ...new Set(plugins.flatMap((plugin) => (plugin.marketplace ? [plugin.marketplace] : []))),
+    ].toSorted(),
+  };
+}
 
 function splitId(id: string): { name: string; marketplace: string | null } {
   const at = id.lastIndexOf("@");
@@ -71,8 +160,7 @@ export function parseCodexPluginTables(
 const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
+  const accounts = yield* LibraryAccounts.LibraryAccounts;
 
   const readText = (file: string) =>
     fileSystem.readFileString(file).pipe(Effect.orElseSucceed(() => null));
@@ -89,13 +177,6 @@ const make = Effect.gen(function* () {
     );
   const describe = (manifest: string) =>
     readJson(manifest).pipe(Effect.map((json) => readString(json.description)));
-
-  const configDirFor = (homePath: string, driver: ProviderDriverKind) => {
-    const folder = CONFIG_FOLDERS[String(driver)]!;
-    const configured = homePath.trim() || process.env[folder.env]?.trim() || "";
-    if (configured.length === 0) return path.join(NodeOS.homedir(), folder.folder);
-    return path.resolve(configured.replace(/^~(?=$|\/)/, NodeOS.homedir()));
-  };
 
   const claudePlugins = Effect.fn("InstalledPlugins.claude")(function* (configDir: string) {
     const installed = asRecord(
@@ -147,33 +228,91 @@ const make = Effect.gen(function* () {
   });
 
   const list: InstalledPlugins["Service"]["list"] = Effect.gen(function* () {
-    const settings = yield* serverSettings.getSettings.pipe(Effect.orElseSucceed(() => null));
-    const instances = yield* registry.listInstances;
-    return yield* Effect.forEach(
-      instances.filter((instance) => CONFIG_FOLDERS[String(instance.driverKind)] !== undefined),
-      (instance) =>
-        Effect.gen(function* () {
-          const instanceConfig = asRecord(settings?.providerInstances[instance.instanceId]?.config);
-          const legacyConfig = asRecord(
-            asRecord(settings?.providers)[instance.driverKind as string],
-          );
-          const homePath =
-            readString(instanceConfig.homePath) ?? readString(legacyConfig.homePath) ?? "";
-          const configDir = configDirFor(homePath, instance.driverKind);
-          const plugins =
-            String(instance.driverKind) === "codex"
-              ? yield* codexPlugins(configDir)
-              : yield* claudePlugins(configDir);
-          return {
-            instanceId: instance.instanceId,
-            configDir,
-            plugins: plugins.toSorted((a, b) => a.name.localeCompare(b.name)),
-          } satisfies InstalledPluginGroup;
-        }),
+    return yield* Effect.forEach(yield* accounts.list, (account) =>
+      Effect.gen(function* () {
+        const plugins =
+          account.driver === "codex"
+            ? yield* codexPlugins(account.configDir)
+            : yield* claudePlugins(account.configDir);
+        return {
+          instanceId: account.instanceId,
+          configDir: account.configDir,
+          plugins: plugins.toSorted((a, b) => a.name.localeCompare(b.name)),
+        } satisfies InstalledPluginGroup;
+      }),
     );
   }).pipe(Effect.withSpan("InstalledPlugins.list"));
 
-  return InstalledPlugins.of({ list });
+  // Listing a marketplace runs the CLI over thousands of entries; searching as
+  // the user types must not run it per keystroke.
+  const catalog = yield* Cache.makeWith(
+    (instanceId: ProviderInstanceId) =>
+      accounts.get(instanceId).pipe(
+        Effect.flatMap((account) => account.runCli(["plugin", "list", "--json", "--available"])),
+        Effect.map(parseAvailablePlugins),
+      ),
+    {
+      capacity: 16,
+      // A failure, such as a CLI that is not installed yet, is retried at once.
+      timeToLive: (exit) => (Exit.isSuccess(exit) ? "2 minutes" : "0 millis"),
+    },
+  );
+
+  const available: InstalledPlugins["Service"]["available"] = Effect.fn(
+    "InstalledPlugins.available",
+  )(function* (input) {
+    return searchAvailablePlugins(yield* Cache.get(catalog, input.instanceId), input.query);
+  });
+
+  /** Runs a CLI command that changes what is installed or offered. */
+  const change = (
+    instanceId: ProviderInstanceId,
+    argument: string,
+    args: (driver: LibraryAccounts.LibraryAccountDriver) => ReadonlyArray<string>,
+  ) =>
+    Effect.gen(function* () {
+      if (!isPlainArgument(argument)) {
+        return yield* new LibraryError({ message: `"${argument}" is not a valid name.` });
+      }
+      const account = yield* accounts.get(instanceId);
+      yield* account.runCli(args(account.driver), { timeout: INSTALL_TIMEOUT });
+      yield* Cache.invalidate(catalog, instanceId);
+    });
+
+  const install: InstalledPlugins["Service"]["install"] = Effect.fn("InstalledPlugins.install")(
+    function* (input) {
+      // No `--yes`: a plugin that installs by running a marketplace's own
+      // command needs a person at the CLI to read and accept that command.
+      yield* change(input.instanceId, input.pluginId, (driver) =>
+        driver === "codex"
+          ? ["plugin", "add", input.pluginId]
+          : ["plugin", "install", input.pluginId],
+      );
+    },
+  );
+
+  const uninstall: InstalledPlugins["Service"]["uninstall"] = Effect.fn(
+    "InstalledPlugins.uninstall",
+  )(function* (input) {
+    yield* change(input.instanceId, input.pluginId, (driver) =>
+      driver === "codex"
+        ? ["plugin", "remove", input.pluginId]
+        : ["plugin", "uninstall", input.pluginId],
+    );
+  });
+
+  const addMarketplace: InstalledPlugins["Service"]["addMarketplace"] = Effect.fn(
+    "InstalledPlugins.addMarketplace",
+  )(function* (input) {
+    yield* change(input.instanceId, input.source, () => [
+      "plugin",
+      "marketplace",
+      "add",
+      input.source,
+    ]);
+  });
+
+  return InstalledPlugins.of({ list, available, install, uninstall, addMarketplace });
 });
 
 export const layer = Layer.effect(InstalledPlugins, make);

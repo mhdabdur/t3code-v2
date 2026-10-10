@@ -29,6 +29,7 @@ import {
   withUntracedRequests,
 } from "./http.ts";
 import * as ServerHttp from "./http.ts";
+import * as ArtifactLibrary from "./library/ArtifactLibrary.ts";
 
 describe("untraced requests", () => {
   it.effect("drops the HTTP server span for browser trace exports, query string included", () => {
@@ -760,4 +761,50 @@ describe("downloadContentDisposition", () => {
       `attachment; filename="bad_name.pdf"; filename*=UTF-8''bad%EF%BF%BDname.pdf`,
     );
   });
+});
+
+describe("shared artifact route", () => {
+  it.effect("serves a shared page without signing in, and nothing for any other token", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-shared-route-" });
+      const pagePath = path.join(directory, "page.html");
+      yield* fileSystem.writeFileString(pagePath, "<p>shared page</p>");
+      // Route handlers read their services from the request, as the running server provides them.
+      const requestContext = yield* Layer.build(
+        Layer.mergeAll(
+          Layer.mock(ArtifactLibrary.ArtifactLibrary)({
+            findShared: (token) =>
+              Effect.succeed(token === "good-token" ? { path: pagePath, title: "Page" } : null),
+          }),
+          NodeHttpPlatform.layer,
+          NodeServices.layer,
+        ),
+      );
+      const { handler, dispose } = HttpRouter.toWebHandler(ServerHttp.layerSharedArtifactRoute, {
+        disableLogger: true,
+      });
+      const get = (pathname: string) =>
+        Effect.promise(() =>
+          handler(new Request(`https://backend.example${pathname}`), requestContext),
+        );
+
+      const shared = yield* get("/api/shared/good-token");
+      expect(shared.status).toBe(200);
+      expect(yield* Effect.promise(() => shared.text())).toBe("<p>shared page</p>");
+      expect(shared.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      // No `allow-same-origin`: the page's scripts cannot act as this server's origin.
+      expect(shared.headers.get("content-security-policy")).toBe(
+        "sandbox allow-scripts allow-forms allow-popups",
+      );
+      expect(shared.headers.get("cache-control")).toBe("no-store");
+      expect(shared.headers.get("referrer-policy")).toBe("no-referrer");
+
+      for (const pathname of ["/api/shared/other-token", "/api/shared/good-token/extra"]) {
+        expect((yield* get(pathname)).status).toBe(404);
+      }
+      yield* Effect.promise(() => dispose());
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
 });

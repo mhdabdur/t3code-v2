@@ -163,12 +163,7 @@ describe("BrowserSession", () => {
         return granted;
       };
 
-      for (const permission of [
-        "clipboard-read",
-        "clipboard-sanitized-write",
-        "notifications",
-        "geolocation",
-      ]) {
+      for (const permission of ["clipboard-read", "clipboard-sanitized-write", "notifications"]) {
         assert.isTrue(requestAllows(permission), `request handler should allow ${permission}`);
         assert.isTrue(
           checkHandler(null, permission) as boolean,
@@ -178,8 +173,9 @@ describe("BrowserSession", () => {
 
       // `clipboard-write` is not a real Electron permission — the async write API
       // uses `clipboard-sanitized-write` — so the stale name must not be granted,
-      // and unrelated permissions stay denied.
-      for (const permission of ["clipboard-write", "midi"]) {
+      // and unrelated permissions stay denied. Geolocation is denied because the
+      // app cannot deliver a position, and a granted request would never settle.
+      for (const permission of ["clipboard-write", "midi", "geolocation"]) {
         assert.isFalse(requestAllows(permission), `request handler should deny ${permission}`);
         assert.isFalse(
           checkHandler(null, permission) as boolean,

@@ -32,7 +32,12 @@ const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "clipboard-read",
   "clipboard-sanitized-write",
   "notifications",
-  "geolocation",
+  // Deliberately NOT geolocation: the app ships no location provider (no macOS
+  // location usage description, no Google location API key), so a granted
+  // `getCurrentPosition()` never calls either callback. Pages that await a
+  // position before acting, such as a login button that tags its analytics
+  // event with coordinates, then hang forever. Denying makes the page see the
+  // same immediate "permission denied" it handles in any browser.
   // Deliberately NOT local-fonts: preview sessions run untrusted web content,
   // and silently granting it would hand every page the user's installed-font
   // fingerprint (and font file bytes via FontData.blob()). The app's own font

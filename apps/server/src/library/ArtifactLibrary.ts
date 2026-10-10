@@ -8,6 +8,10 @@
  * JSON file beside the database rather than a table: the database is shared
  * with upstream T3 Code, whose future migrations must not collide with ours.
  *
+ * An artifact is private until it is shared. Sharing gives it a random token,
+ * and the HTTP route for that token serves the current version without
+ * signing in: the token is the whole permission.
+ *
  * @module library/ArtifactLibrary
  */
 import * as NodeCrypto from "node:crypto";
@@ -15,6 +19,7 @@ import * as NodeCrypto from "node:crypto";
 import {
   LibraryArtifact,
   LibraryError,
+  type LibraryArtifactPublication,
   type LibraryArtifactVersion,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -57,6 +62,34 @@ export class ArtifactLibrary extends Context.Service<
     readonly list: Effect.Effect<ReadonlyArray<LibraryArtifact>, LibraryError>;
     /** Removes the artifact and every version's page; a missing id is a no-op. */
     readonly remove: (artifactId: string) => Effect.Effect<void, LibraryError>;
+    /**
+     * Renames, pins, or shares an artifact. Sharing mints the token its public
+     * link carries; unsharing drops it, so a link shared earlier stops working
+     * for good.
+     */
+    readonly update: (input: {
+      readonly artifactId: string;
+      readonly title?: string | undefined;
+      readonly pinned?: boolean | undefined;
+      readonly shared?: boolean | undefined;
+      /** Records where the provider hosts the page; `null` forgets it. */
+      readonly publication?: LibraryArtifactPublication | null | undefined;
+    }) => Effect.Effect<LibraryArtifact, LibraryError>;
+    /** The artifact and the file holding its current version's page. */
+    readonly currentPage: (artifactId: string) => Effect.Effect<
+      {
+        readonly artifact: LibraryArtifact;
+        readonly version: LibraryArtifactVersion;
+        readonly path: string;
+      },
+      LibraryError
+    >;
+    /** A new private artifact holding a copy of the current version. */
+    readonly duplicate: (artifactId: string) => Effect.Effect<LibraryArtifact, LibraryError>;
+    /** The current page of the public artifact this token belongs to. */
+    readonly findShared: (
+      shareToken: string,
+    ) => Effect.Effect<{ readonly path: string; readonly title: string } | null, LibraryError>;
   }
 >()("t3/library/ArtifactLibrary") {}
 
@@ -139,6 +172,9 @@ const make = Effect.gen(function* () {
                 providerInstanceId: shell?.providerInstanceId ?? null,
                 createdAt: now,
                 updatedAt: now,
+                pinned: false,
+                shareToken: null,
+                publication: null,
                 versions: [version],
               };
           yield* writeIndex({
@@ -187,7 +223,110 @@ const make = Effect.gen(function* () {
     },
   );
 
-  return ArtifactLibrary.of({ recordRender, list, remove });
+  const missing = () => new LibraryError({ message: "This artifact no longer exists." });
+
+  const update: ArtifactLibrary["Service"]["update"] = Effect.fn("ArtifactLibrary.update")(
+    function* (input) {
+      return yield* lock.withPermits(1)(
+        Effect.gen(function* () {
+          const index = yield* readIndex;
+          const existing = index.artifacts.find((entry) => entry.id === input.artifactId);
+          if (!existing) return yield* missing();
+          const artifact: LibraryArtifact = {
+            ...existing,
+            ...(input.title === undefined ? {} : { title: input.title }),
+            ...(input.pinned === undefined ? {} : { pinned: input.pinned }),
+            ...(input.publication === undefined ? {} : { publication: input.publication }),
+            ...(input.shared === undefined
+              ? {}
+              : {
+                  shareToken: input.shared
+                    ? (existing.shareToken ?? NodeCrypto.randomBytes(24).toString("base64url"))
+                    : null,
+                }),
+          };
+          yield* writeIndex({
+            artifacts: index.artifacts.map((entry) =>
+              entry.id === artifact.id ? artifact : entry,
+            ),
+          });
+          return artifact;
+        }),
+      );
+    },
+  );
+
+  const duplicate: ArtifactLibrary["Service"]["duplicate"] = Effect.fn("ArtifactLibrary.duplicate")(
+    function* (artifactId) {
+      const source = (yield* readIndex).artifacts.find((entry) => entry.id === artifactId);
+      const current = source?.versions.at(-1);
+      if (!source || !current) return yield* missing();
+      const from = pagePath(current.attachmentId);
+      const attachmentId = createAttachmentId(LIBRARY_SEGMENT, "html");
+      const target = attachmentId === null ? null : pagePath(attachmentId);
+      if (from === null || attachmentId === null || target === null) {
+        return yield* new LibraryError({ message: "Invalid page id." });
+      }
+      yield* fileSystem
+        .copyFile(from, target)
+        .pipe(Effect.mapError(libraryError("Could not copy the page.")));
+      const now = DateTime.formatIso(yield* DateTime.now);
+      const artifact: LibraryArtifact = {
+        ...source,
+        id: NodeCrypto.randomUUID(),
+        title: `${source.title} copy`,
+        createdAt: now,
+        updatedAt: now,
+        pinned: false,
+        shareToken: null,
+        publication: null,
+        versions: [{ ...current, version: 1, attachmentId, createdAt: now }],
+      };
+      return yield* lock
+        .withPermits(1)(
+          Effect.gen(function* () {
+            const index = yield* readIndex;
+            yield* writeIndex({ artifacts: [artifact, ...index.artifacts] });
+            return artifact;
+          }),
+        )
+        .pipe(Effect.onError(() => fileSystem.remove(target, { force: true }).pipe(Effect.ignore)));
+    },
+  );
+
+  const currentPage: ArtifactLibrary["Service"]["currentPage"] = Effect.fn(
+    "ArtifactLibrary.currentPage",
+  )(function* (artifactId) {
+    const artifact = (yield* readIndex).artifacts.find((entry) => entry.id === artifactId);
+    const version = artifact?.versions.at(-1);
+    const file = version ? pagePath(version.attachmentId) : null;
+    if (!artifact || !version || file === null) return yield* missing();
+    return { artifact, version, path: file };
+  });
+
+  const findShared: ArtifactLibrary["Service"]["findShared"] = Effect.fn(
+    "ArtifactLibrary.findShared",
+  )(function* (shareToken) {
+    const provided = Buffer.from(shareToken);
+    const artifact = (yield* readIndex).artifacts.find((entry) => {
+      if (entry.shareToken === null) return false;
+      const expected = Buffer.from(entry.shareToken);
+      return expected.length === provided.length && NodeCrypto.timingSafeEqual(expected, provided);
+    });
+    const current = artifact?.versions.at(-1);
+    const file = current ? pagePath(current.attachmentId) : null;
+    return artifact && file ? { path: file, title: artifact.title } : null;
+  });
+
+  return ArtifactLibrary.of({
+    recordRender,
+    list,
+    remove,
+    update,
+    duplicate,
+    currentPage,
+    findShared,
+  });
 });
 
 export const layer = Layer.effect(ArtifactLibrary, make);

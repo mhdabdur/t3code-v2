@@ -159,7 +159,9 @@ import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as PromptSuggestionService from "./orchestration-v2/PromptSuggestionService.ts";
 import * as ArtifactLibrary from "./library/ArtifactLibrary.ts";
+import * as ArtifactPublisher from "./library/ArtifactPublisher.ts";
 import * as InstalledPlugins from "./library/InstalledPlugins.ts";
+import * as SkillManager from "./library/SkillManager.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
 import {
@@ -1205,6 +1207,8 @@ const layerWsRpc = (
       const promptSuggestions = yield* PromptSuggestionService.PromptSuggestionService;
       const artifactLibrary = yield* ArtifactLibrary.ArtifactLibrary;
       const installedPlugins = yield* InstalledPlugins.InstalledPlugins;
+      const skillManager = yield* SkillManager.SkillManager;
+      const artifactPublisher = yield* ArtifactPublisher.ArtifactPublisher;
 
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const analytics = yield* AnalyticsService.AnalyticsService;
@@ -2667,6 +2671,84 @@ const layerWsRpc = (
             WS_METHODS.libraryDeleteArtifact,
             artifactLibrary.remove(input.artifactId).pipe(Effect.as({})),
             { "rpc.aggregate": "library" },
+          ),
+        [WS_METHODS.libraryUpdateArtifact]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryUpdateArtifact,
+            artifactLibrary.update(input).pipe(Effect.map((artifact) => ({ artifact }))),
+            {
+              "rpc.aggregate": "library",
+            },
+          ),
+        [WS_METHODS.libraryDuplicateArtifact]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryDuplicateArtifact,
+            artifactLibrary
+              .duplicate(input.artifactId)
+              .pipe(Effect.map((artifact) => ({ artifact }))),
+            {
+              "rpc.aggregate": "library",
+            },
+          ),
+        [WS_METHODS.libraryPublishArtifact]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryPublishArtifact,
+            artifactPublisher
+              .publish(input.artifactId)
+              .pipe(Effect.map((artifact) => ({ artifact }))),
+            { "rpc.aggregate": "library" },
+          ),
+        [WS_METHODS.libraryUnpublishArtifact]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryUnpublishArtifact,
+            artifactPublisher
+              .unpublish(input.artifactId)
+              .pipe(Effect.map((artifact) => ({ artifact }))),
+            { "rpc.aggregate": "library" },
+          ),
+        [WS_METHODS.libraryListAvailablePlugins]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryListAvailablePlugins,
+            installedPlugins.available(input),
+            {
+              "rpc.aggregate": "library",
+            },
+          ),
+        [WS_METHODS.libraryInstallPlugin]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryInstallPlugin,
+            installedPlugins.install(input).pipe(Effect.as({})),
+            {
+              "rpc.aggregate": "library",
+            },
+          ),
+        [WS_METHODS.libraryUninstallPlugin]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryUninstallPlugin,
+            installedPlugins.uninstall(input).pipe(Effect.as({})),
+            {
+              "rpc.aggregate": "library",
+            },
+          ),
+        [WS_METHODS.libraryAddPluginMarketplace]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryAddPluginMarketplace,
+            installedPlugins.addMarketplace(input).pipe(Effect.as({})),
+            {
+              "rpc.aggregate": "library",
+            },
+          ),
+        [WS_METHODS.libraryAddSkill]: (input) =>
+          observeRpcEffect(WS_METHODS.libraryAddSkill, skillManager.add(input), {
+            "rpc.aggregate": "library",
+          }),
+        [WS_METHODS.libraryRemoveSkill]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.libraryRemoveSkill,
+            skillManager.remove(input).pipe(Effect.as({})),
+            {
+              "rpc.aggregate": "library",
+            },
           ),
         [WS_METHODS.serverRefreshUsageRates]: (_input) =>
           observeRpcEffect(WS_METHODS.serverRefreshUsageRates, usage.refreshRates, {

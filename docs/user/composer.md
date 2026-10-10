@@ -190,6 +190,17 @@ provider. On mobile, both are also available before starting a thread on
 The slash menu also includes skills unless you turn off **Settings → General →
 Show skills in slash menu**. Only skills enabled for the provider are listed.
 
+**Skills** and **Plugins** in the sidebar list what each Claude and Codex
+account has, and let you add or remove them on web and desktop. A plugin comes
+from one of the account's marketplaces; you can add a marketplace from a GitHub
+repository or git URL in the same dialog. A skill can come from a git
+repository, a folder on the machine running T3 Code, or text you write in the
+app. It is saved in the account's own skills folder, and a skill already there
+under the same name is never overwritten. Only skills in that folder can be
+removed; skills that come with a plugin or a project stay with it. A plugin
+whose installer runs a command from its marketplace must be installed from the
+provider's own CLI, where you can read and accept that command.
+
 After you add or change skills, plugins, or MCP servers, use **Restart agent
 session** in the command palette on web and desktop. The conversation continues,
 and your next message starts the agent again with the new setup.

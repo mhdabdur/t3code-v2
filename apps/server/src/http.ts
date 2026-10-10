@@ -27,7 +27,9 @@ import {
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { OtlpTracer, OtlpSerialization } from "effect/observability";
 
+import { LIBRARY_SHARED_ROUTE_PREFIX } from "@t3tools/contracts";
 import * as ServerConfig from "./config.ts";
+import * as ArtifactLibrary from "./library/ArtifactLibrary.ts";
 import { ASSET_ROUTE_PREFIX, resolveAsset } from "./assets/AssetAccess.ts";
 import { githubMediaResponse } from "./assets/GitHubMediaFetch.ts";
 import { statMediaFile, streamMediaFile, type OpenMediaFile } from "./assets/MediaFile.ts";
@@ -386,7 +388,12 @@ const layerUntracedRequests = Layer.succeed(HttpMiddleware.TracerDisabledWhen)((
   const queryIndex = request.url.indexOf("?");
   const path = queryIndex === -1 ? request.url : request.url.slice(0, queryIndex);
   // Webhook URLs carry their secret token in the path, so they never reach a trace.
-  return UNTRACED_REQUEST_PATHS.has(path) || path.startsWith(`${WEBHOOK_ROUTE_PREFIX}/`);
+  return (
+    UNTRACED_REQUEST_PATHS.has(path) ||
+    path.startsWith(`${WEBHOOK_ROUTE_PREFIX}/`) ||
+    // A share link's token is its whole permission, like a webhook's.
+    path.startsWith(`${LIBRARY_SHARED_ROUTE_PREFIX}/`)
+  );
 });
 
 export const withUntracedRequests = Layer.provide(layerUntracedRequests);
@@ -440,6 +447,43 @@ export const layerAssetRoute = HttpRouter.add(
       request.method === "HEAD" ? "HEAD" : "GET",
     ).pipe(
       Effect.orElseSucceed(() => HttpServerResponse.text("Internal Server Error", { status: 500 })),
+    );
+  }),
+);
+
+/**
+ * Serves a shared Library artifact to anyone holding its link; no sign-in.
+ * The page's sandbox policy carries no `allow-same-origin`, so its scripts run
+ * in an opaque origin and cannot reach this server's cookies or API.
+ */
+export const layerSharedArtifactRoute = HttpRouter.add(
+  "GET",
+  `${LIBRARY_SHARED_ROUTE_PREFIX}/*`,
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const library = yield* ArtifactLibrary.ArtifactLibrary;
+    const url = HttpServerRequest.toURL(request);
+    const token = Option.isNone(url)
+      ? ""
+      : url.value.pathname.slice(`${LIBRARY_SHARED_ROUTE_PREFIX}/`.length);
+    const page =
+      token.length === 0 || token.includes("/")
+        ? null
+        : yield* library.findShared(token).pipe(Effect.orElseSucceed(() => null));
+    if (!page) {
+      return HttpServerResponse.text("Not Found", { status: 404 });
+    }
+    return yield* assetFileResponse({ path: page.path, mimeType: "text/html" }).pipe(
+      Effect.map(
+        HttpServerResponse.setHeaders({
+          // Unsharing must take effect on the next request.
+          "Cache-Control": "no-store",
+          // The token must not reach sites the page links to, or search engines.
+          "Referrer-Policy": "no-referrer",
+          "X-Robots-Tag": "noindex",
+        }),
+      ),
+      Effect.orElseSucceed(() => HttpServerResponse.text("Not Found", { status: 404 })),
     );
   }),
 );

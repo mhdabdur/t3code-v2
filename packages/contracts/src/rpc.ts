@@ -143,10 +143,22 @@ import {
   OrchestrationSuggestNextPromptResult,
 } from "./promptSuggestion.ts";
 import {
+  LibraryAddPluginMarketplaceInput,
+  LibraryAddSkillInput,
+  LibraryAddSkillResult,
+  LibraryArtifactResult,
   LibraryDeleteArtifactInput,
+  LibraryDuplicateArtifactInput,
   LibraryError,
   LibraryListArtifactsResult,
+  LibraryListAvailablePluginsInput,
+  LibraryListAvailablePluginsResult,
   LibraryListPluginsResult,
+  LibraryPluginInput,
+  LibraryPublishArtifactInput,
+  LibraryRemoveSkillInput,
+  LibraryUnpublishArtifactInput,
+  LibraryUpdateArtifactInput,
 } from "./library.ts";
 import {
   ProviderUploadFeedbackError,
@@ -485,6 +497,16 @@ export const WS_METHODS = {
   libraryListArtifacts: "library.listArtifacts",
   libraryDeleteArtifact: "library.deleteArtifact",
   libraryListPlugins: "library.listPlugins",
+  libraryUpdateArtifact: "library.updateArtifact",
+  libraryDuplicateArtifact: "library.duplicateArtifact",
+  libraryPublishArtifact: "library.publishArtifact",
+  libraryUnpublishArtifact: "library.unpublishArtifact",
+  libraryListAvailablePlugins: "library.listAvailablePlugins",
+  libraryInstallPlugin: "library.installPlugin",
+  libraryUninstallPlugin: "library.uninstallPlugin",
+  libraryAddPluginMarketplace: "library.addPluginMarketplace",
+  libraryAddSkill: "library.addSkill",
+  libraryRemoveSkill: "library.removeSkill",
   serverRefreshUsageRates: "server.refreshUsageRates",
 
   // Scheduled tasks
@@ -869,6 +891,66 @@ const WsLibraryDeleteArtifactRpc = Rpc.make(WS_METHODS.libraryDeleteArtifact, {
 const WsLibraryListPluginsRpc = Rpc.make(WS_METHODS.libraryListPlugins, {
   payload: Schema.Struct({}),
   success: LibraryListPluginsResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryUpdateArtifactRpc = Rpc.make(WS_METHODS.libraryUpdateArtifact, {
+  payload: LibraryUpdateArtifactInput,
+  success: LibraryArtifactResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryDuplicateArtifactRpc = Rpc.make(WS_METHODS.libraryDuplicateArtifact, {
+  payload: LibraryDuplicateArtifactInput,
+  success: LibraryArtifactResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryPublishArtifactRpc = Rpc.make(WS_METHODS.libraryPublishArtifact, {
+  payload: LibraryPublishArtifactInput,
+  success: LibraryArtifactResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryUnpublishArtifactRpc = Rpc.make(WS_METHODS.libraryUnpublishArtifact, {
+  payload: LibraryUnpublishArtifactInput,
+  success: LibraryArtifactResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryListAvailablePluginsRpc = Rpc.make(WS_METHODS.libraryListAvailablePlugins, {
+  payload: LibraryListAvailablePluginsInput,
+  success: LibraryListAvailablePluginsResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryInstallPluginRpc = Rpc.make(WS_METHODS.libraryInstallPlugin, {
+  payload: LibraryPluginInput,
+  success: Schema.Struct({}),
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryUninstallPluginRpc = Rpc.make(WS_METHODS.libraryUninstallPlugin, {
+  payload: LibraryPluginInput,
+  success: Schema.Struct({}),
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryAddPluginMarketplaceRpc = Rpc.make(WS_METHODS.libraryAddPluginMarketplace, {
+  payload: LibraryAddPluginMarketplaceInput,
+  success: Schema.Struct({}),
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryAddSkillRpc = Rpc.make(WS_METHODS.libraryAddSkill, {
+  payload: LibraryAddSkillInput,
+  success: LibraryAddSkillResult,
+  error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
+});
+
+const WsLibraryRemoveSkillRpc = Rpc.make(WS_METHODS.libraryRemoveSkill, {
+  payload: LibraryRemoveSkillInput,
+  success: Schema.Struct({}),
   error: Schema.Union([LibraryError, EnvironmentAuthorizationError]),
 });
 
@@ -1831,6 +1913,16 @@ export const WsRpcGroup = RpcGroup.make(
   WsLibraryListArtifactsRpc,
   WsLibraryDeleteArtifactRpc,
   WsLibraryListPluginsRpc,
+  WsLibraryUpdateArtifactRpc,
+  WsLibraryDuplicateArtifactRpc,
+  WsLibraryPublishArtifactRpc,
+  WsLibraryUnpublishArtifactRpc,
+  WsLibraryListAvailablePluginsRpc,
+  WsLibraryInstallPluginRpc,
+  WsLibraryUninstallPluginRpc,
+  WsLibraryAddPluginMarketplaceRpc,
+  WsLibraryAddSkillRpc,
+  WsLibraryRemoveSkillRpc,
   WsServerRefreshUsageRatesRpc,
   WsServerSignalProcessRpc,
   WsScheduledTasksListRpc,
